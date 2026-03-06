@@ -136,7 +136,8 @@
     <h1>MAJOR SECURITY BREACH</h1>
     <h2>試圖檢視原始碼，偵測到駭客行為！</h2>
     <p id="penalty-score-text" style="color: var(--highlight); font-weight: bold; font-size: 2rem;">扣除 9999 分</p>
-    <p>系統將於 <span id="countdown">3</span> 秒後強制關閉...</p>
+    <p>系統將於 <span id="countdown">5</span> 秒後強制關閉...</p>
+    <p style="font-size: smaller;">恭喜你發現了小彩蛋XD</p>
 </div>
 
 <div id="custom-context-menu">
@@ -869,7 +870,7 @@
         
         document.getElementById('penalty-screen').style.display = 'flex';
         
-        let timeLeft = 3;
+        let timeLeft = 5;
         const countdownEl = document.getElementById('countdown');
         const timer = setInterval(() => {
             timeLeft--;
