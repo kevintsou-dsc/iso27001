@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISO 27001 稽核模擬器：證據拼圖</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #00d2ff;
+            --accent: #3a7bd5;
+            --bg: #1a1a2e;
+            --panel: #16213e;
+            --text: #e0e0e0;
+            --highlight: #f9a825;
+            --success: #00ff88;
+            --danger: #ff4d4d;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #audit-pad {
+            width: 100%; max-width: 800px; background-color: var(--panel); border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.15); border: 1px solid #333; overflow: hidden;
+            display: flex; flex-direction: column; min-height: 600px; position: relative;
+        }
+
+        /* 頂部資訊列等共用樣式 (維持不變) */
+        .header { background: linear-gradient(90deg, #0f0c29, #302b63); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); }
+        .header h2 { margin: 0; font-size: 1.2rem; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+        .badge { background: #333; padding: 5px 10px; border-radius: 4px; font-size: 0.9rem; margin-left: 5px; }
+        .score-display { color: var(--highlight); font-weight: bold; font-size: 1.1rem; display: none; margin-right: 15px;}
+        .cheat-btn { background: #2c3e50; border: 1px solid var(--highlight); color: var(--highlight); padding: 5px 15px; border-radius: 20px; cursor: pointer; transition: 0.3s; font-size: 0.9rem; }
+        .cheat-btn:hover { background: var(--highlight); color: #000; }
+        .progress-container { width: 100%; height: 6px; background-color: #222; }
+        .progress-fill { height: 100%; width: 0%; background-color: var(--success); transition: width 0.5s ease-in-out; }
+        .main-content { padding: 20px; flex-grow: 1; display: flex; flex-direction: column; gap: 20px; }
+        .hidden { display: none !important; }
+        .center-screen { justify-content: center; align-items: center; text-align: center; }
+
+        .mode-selection { display: flex; gap: 20px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+        .mode-btn { background: transparent; border: 2px solid var(--primary); color: var(--text); padding: 15px 30px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-size: 1.1rem; font-weight: bold; width: 220px; }
+        .mode-btn:hover { background: rgba(0, 210, 255, 0.2); transform: translateY(-3px); }
+        .mode-btn.challenge { border-color: var(--highlight); color: var(--highlight); }
+        .mode-btn.challenge:hover { background: rgba(249, 168, 37, 0.2); }
+        .scenario-box { background: rgba(255,255,255,0.05); padding: 20px; border-left: 4px solid var(--primary); border-radius: 4px; }
+        .investigation-tools { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 10px; }
+        .tool-btn { background: transparent; border: 1px solid var(--accent); color: var(--text); padding: 20px; border-radius: 8px; cursor: pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .tool-btn i { font-size: 2rem; color: var(--accent); }
+        .tool-btn:hover { background: rgba(58, 123, 213, 0.2); }
+        .tool-btn.active { background: var(--accent); color: white; border-color: var(--primary); box-shadow: 0 0 15px rgba(0, 210, 255, 0.4); }
+        .tool-btn.active i { color: white; }
+        #evidence-display { background: #000; border: 1px solid #444; border-radius: 8px; padding: 20px; min-height: 150px; position: relative; }
+        .evidence-content { display: none; animation: fadeIn 0.5s; }
+        .evidence-content.show { display: block; }
+        
+        .evidence-img { width: 100%; max-width: 100%; height: auto; max-height: 30vh; object-fit: contain; display: block; margin: 0 auto 10px auto; border: 1px solid #555; border-radius: 4px; cursor: zoom-in; transition: transform 0.2s; }
+        .evidence-img:hover { transform: scale(1.02); box-shadow: 0 0 10px var(--primary); }
+
+        .verdict-area { margin-top: auto; border-top: 1px solid #333; padding-top: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .verdict-btn { width: 100%; padding: 15px; background: var(--primary); border: none; color: #000; font-weight: bold; font-size: 1.1rem; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+        .verdict-btn:disabled { background: #555; cursor: not-allowed; }
+        .verdict-btn:hover:not(:disabled) { background: #33eaff; box-shadow: 0 0 15px var(--primary); }
+        .nav-controls { display: flex; justify-content: space-between; }
+        .nav-btn { background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: 0.3s; }
+        .nav-btn:hover:not(:disabled) { background: rgba(0, 210, 255, 0.1); }
+        .nav-btn:disabled { border-color: #444; color: #444; cursor: not-allowed; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
+        .modal-box { background: var(--panel); padding: 30px; border-radius: 10px; max-width: 500px; width: 90%; max-height: 85vh; overflow-y: auto; border: 2px solid var(--primary); position: relative; }
+        .modal-box.large { max-width: 800px; padding: 40px 30px; }
+        .close-modal-btn { position: absolute; top: 10px; right: 15px; background: transparent; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer; transition: 0.3s; z-index: 10; }
+        .close-modal-btn:hover { color: white; }
+        .option-btn { display: block; width: 100%; padding: 15px; margin: 10px 0; background: #232946; border: 1px solid #4a4e69; color: white; text-align: left; cursor: pointer; border-radius: 5px; transition: 0.2s; }
+        .option-btn:hover { border-color: var(--primary); }
+
+        #lightbox-modal { z-index: 999; background: rgba(0,0,0,0.9); flex-direction: column; cursor: zoom-out; }
+        .lightbox-img { max-width: 90%; max-height: 85vh; border-radius: 8px; box-shadow: 0 0 30px rgba(0, 210, 255, 0.3); animation: zoomIn 0.3s; }
+        @keyframes zoomIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        #penalty-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: var(--danger); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center; font-family: 'Courier New', Courier, monospace; }
+        #penalty-screen h1 { font-size: 4rem; margin: 10px 0; text-shadow: 0 0 20px red; }
+        #penalty-screen p { font-size: 1.5rem; color: white; }
+
+        .cheat-sheet-content h3 { color: var(--primary); border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0; }
+        .cheat-category { margin-top: 15px; background: rgba(0, 0, 0, 0.3); border: 1px solid #333; border-radius: 5px; }
+        .cheat-category summary { font-weight: bold; color: var(--highlight); cursor: pointer; padding: 15px; font-size: 1.1rem; user-select: none; }
+        .cheat-category summary:hover { background: rgba(255, 255, 255, 0.05); }
+        .cheat-list { padding: 0 15px 15px 15px; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+        .cheat-item { border-bottom: 1px dashed #444; padding-bottom: 8px; }
+        .cheat-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .cheat-item-title { color: var(--primary); font-weight: bold; font-size: 0.95rem; }
+        .cheat-item-desc { font-size: 0.85rem; color: #ccc; line-height: 1.5; margin-top: 4px; }
+        
+        .toast { position: fixed; top: 20%; left: 50%; transform: translate(-50%, -50%); background: var(--danger); color: white; padding: 15px 30px; border-radius: 8px; font-weight: bold; font-size: 1.2rem; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 200; box-shadow: 0 0 20px rgba(255, 77, 77, 0.5); }
+        .score-circle { width: 150px; height: 150px; border-radius: 50%; border: 5px solid var(--primary); display: flex; justify-content: center; align-items: center; font-size: 3rem; font-weight: bold; color: var(--primary); margin: 0 auto 20px auto; box-shadow: 0 0 20px rgba(0, 210, 255, 0.3); }
+        .result-rank { font-size: 1.5rem; margin-bottom: 10px; font-weight: bold; }
+        .result-details { text-align: left; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; margin: 20px 0; font-size: 0.95rem; color: #ccc; }
+        .pass { color: var(--success); font-weight: bold; }
+        .fail { color: var(--danger); font-weight: bold; }
+
+        /* ================= 新增：自訂右鍵選單樣式 ================= */
+        #custom-context-menu {
+            display: none;
+            position: absolute;
+            background: var(--panel);
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.4);
+            border-radius: 8px;
+            z-index: 10000;
+            min-width: 180px;
+            overflow: hidden;
+            font-size: 0.9rem;
+        }
+        #custom-context-menu ul { list-style: none; padding: 5px 0; margin: 0; }
+        #custom-context-menu li { padding: 12px 15px; cursor: pointer; color: var(--text); transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+        #custom-context-menu li:hover { background: rgba(0, 210, 255, 0.2); }
+        #custom-context-menu li.danger-item:hover { background: rgba(255, 77, 77, 0.2); color: var(--danger); }
+        .menu-divider { border-bottom: 1px solid #333; margin: 5px 0; padding: 0 !important; height: 1px; cursor: default; }
+    </style>
+</head>
+<body>
+
+<div id="penalty-screen">
+    <i class="fas fa-skull-crossbones" style="font-size: 6rem;"></i>
+    <h1>MAJOR SECURITY BREACH</h1>
+    <h2>試圖檢視原始碼，偵測到駭客行為！</h2>
+    <p id="penalty-score-text" style="color: var(--highlight); font-weight: bold; font-size: 2rem;">扣除 9999 分</p>
+    <p>系統將於 <span id="countdown">3</span> 秒後強制關閉...</p>
+</div>
+
+<div id="custom-context-menu">
+    <ul>
+        <li onclick="alert('目前無可複製的機密內容。')"><i class="fas fa-copy"></i> 複製</li>
+        <li onclick="location.reload()"><i class="fas fa-sync-alt"></i> 重新載入</li>
+        <li class="menu-divider"></li>
+        <li class="danger-item" onclick="triggerAntiCheat()"><i class="fas fa-code"></i> 檢視網頁原始碼(V)</li>
+        <li class="danger-item" onclick="triggerAntiCheat()"><i class="fas fa-search"></i> 檢查(N)</li>
+    </ul>
+</div>
+
+<div id="toast-msg" class="toast">-30 分！小抄開啟警告</div>
+
+<div id="audit-pad">
+    <div class="header">
+        <h2><i class="fas fa-clipboard-check"></i> 稽核模擬器 v1.1<button class="cheat-btn hidden" id="btn-cheat" onclick="openCheatSheet()"><i class="fas fa-book-open"></i> 條文小抄</button></h2>
+        <div><span class="score-display" id="global-score-display">Score: 0</span><span class="badge" id="progress-badge">Standby</span></div>
+    </div>
+    <div class="progress-container"><div class="progress-fill" id="progress-bar"></div></div>
+
+    <div id="start-screen" class="main-content center-screen">
+        <i class="fas fa-shield-alt" style="font-size: 5rem; color: var(--primary); margin-bottom: 20px;"></i>
+        <h1>資安稽核模擬訓練</h1>
+        <p>稽核的核心在於「證據」。請善用訪談、觀察、文件找出風險。</p>
+        <div class="mode-selection">
+            <button class="mode-btn" onclick="startGame('normal')"><i class="fas fa-coffee"></i> 普通模式<br><span style="font-size: 0.8rem; font-weight: normal; color: #aaa;">無壓力學習，自由翻閱</span></button>
+            <button class="mode-btn challenge" onclick="startGame('challenge')"><i class="fas fa-stopwatch"></i> 計分挑戰模式<br><span style="font-size: 0.8rem; font-weight: normal; color: #aaa;">考驗判斷速度與精準度</span></button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="main-content hidden">
+        <div class="scenario-box"><h3 id="case-title" style="margin-top:0; color:var(--highlight)"></h3><p id="case-desc"></p></div>
+        <div class="investigation-tools">
+            <button class="tool-btn" id="btn-interview" onclick="showEvidence('interview', this)"><i class="fas fa-comments"></i> 訪談 <span style="font-size:0.8rem; color:#aaa;">聽他們怎麼說</span></button>
+            <button class="tool-btn" id="btn-doc" onclick="showEvidence('doc', this)"><i class="fas fa-file-contract"></i> 文件 <span style="font-size:0.8rem; color:#aaa;">看規定怎麼寫</span></button>
+            <button class="tool-btn" id="btn-observation" onclick="showEvidence('observation', this)"><i class="fas fa-eye"></i> 觀察 <span style="font-size:0.8rem; color:#aaa;">看實際怎麼做</span></button>
+        </div>
+        <div id="evidence-display">
+            <p id="evidence-hint" style="color:#777; text-align:center; padding-top:40px;">請點擊上方按鈕蒐集證據...</p>
+            <div id="ev-interview" class="evidence-content"><h4 style="color:var(--highlight); margin-top:0;">訪談紀錄：</h4><p id="txt-interview"></p></div>
+            <div id="ev-doc" class="evidence-content"><h4 style="color:var(--highlight); margin-top:0;">文件查核：</h4><p id="txt-doc"></p></div>
+            <div id="ev-observation" class="evidence-content"><h4 style="color:var(--highlight); margin-top:0;">現場觀察：</h4><div id="obs-container"></div></div>
+        </div>
+        <div class="verdict-area">
+            <button id="make-verdict-btn" class="verdict-btn" onclick="openVerdictModal()" disabled>證據收集完成，開始判定</button>
+            <div class="nav-controls">
+                <button class="nav-btn" id="btn-prev" onclick="navigateCase(-1)"><i class="fas fa-chevron-left"></i> 上一題</button>
+                <button class="nav-btn" id="btn-next" onclick="navigateCase(1)">下一題 <i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="final-screen" class="main-content center-screen hidden">
+        <h2 style="color: var(--text);">稽核總結報告</h2>
+        <div class="score-circle" id="final-score">0</div>
+        <div id="final-rank" class="result-rank">評語載入中...</div>
+        <div class="result-details">
+            <p id="score-breakdown-display" style="color: var(--highlight); font-weight: bold;"></p>
+            <p><i class="fas fa-check-circle" style="color: var(--success)"></i> 答對題數：<span id="correct-count">0</span> / <span id="total-count">0</span></p>
+            <p id="final-comment">評語內容...</p>
+        </div>
+        <button class="verdict-btn" style="width: 200px;" onclick="location.reload()">回首頁</button>
+    </div>
+</div>
+
+<div id="lightbox-modal" class="modal" onclick="closeLightbox()">
+    <span class="close-modal-btn" style="color: white; font-size: 2rem;">&times;</span>
+    <img class="lightbox-img" id="lightbox-img" src="" alt="Zoomed Evidence">
+</div>
+
+<div id="verdict-modal" class="modal">
+    <div class="modal-box"><button class="close-modal-btn" onclick="closeVerdictModal()"><i class="fas fa-times"></i></button><h3><i class="fas fa-gavel"></i> 稽核判定</h3><p>根據您收集到的證據，主要問題是什麼？</p><div id="options-container"></div></div>
+</div>
+<div id="result-modal" class="modal">
+    <div class="modal-box" style="text-align: center;"><i id="result-icon" class="fas fa-check-circle" style="font-size: 4rem; margin-bottom: 20px;"></i><h2 id="result-title">判定正確</h2><p id="result-points" style="color: var(--highlight); font-size: 1.2rem; font-weight: bold; margin: 10px 0; display: none;">+ 85 分</p><p id="result-desc" style="text-align: left; line-height: 1.6;"></p><button id="result-continue-btn" class="verdict-btn" onclick="closeResultAndProceed()">繼續</button></div>
+</div>
+
+<div id="cheat-sheet-modal" class="modal">
+    <div class="modal-box large">
+        <button class="close-modal-btn" onclick="document.getElementById('cheat-sheet-modal').style.display='none'"><i class="fas fa-times"></i></button>
+        <div class="cheat-sheet-content">
+            <h3><i class="fas fa-book"></i> ISO 27002:2022 控制項速查表</h3>
+            <p style="color: #aaa; font-size: 0.9rem;">共 93 項控制措施，點擊分類展開細節。</p>
+            
+            <details class="cheat-category">
+                <summary>A.5 組織控制 (Organizational controls) - 37 項</summary>
+                <div class="cheat-list">
+                    <div class="cheat-item"><div class="cheat-item-title">5.1 資訊安全政策</div><div class="cheat-item-desc">應由管理階層定義、核准及發布，並傳達給員工及相關外部團體。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.2 資訊安全角色與責任</div><div class="cheat-item-desc">應明確定義並配置所有資訊安全責任。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.3 職責分工</div><div class="cheat-item-desc">衝突的職責與責任區應予分離，以降低未經授權變更的風險。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.4 管理階層責任</div><div class="cheat-item-desc">管理階層應確保員工與合約人員落實資訊安全。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.5 聯繫主管機關</div><div class="cheat-item-desc">應維持與相關主管機關的適當聯繫管道。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.6 聯繫特殊利益團體</div><div class="cheat-item-desc">應維持與特殊利益團體、資安論壇等專業組織的聯繫。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.7 威脅情資 (Threat intelligence)</div><div class="cheat-item-desc">應收集與分析與資安威脅相關的資訊，以產生威脅情資。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.8 專案管理之資訊安全</div><div class="cheat-item-desc">應將資訊安全整合至專案管理的方法中。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.9 資產清冊與資訊分級</div><div class="cheat-item-desc">應建立資產清冊並依資訊價值與法規要求進行分級。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.10 資訊與相關資產的合理使用</div><div class="cheat-item-desc">應建立、實作並傳達合理使用與處置規則。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.11 資產繳回</div><div class="cheat-item-desc">員工離職或合約終止時，應歸還組織資產。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.12 資訊分級</div><div class="cheat-item-desc">資訊應依其對組織的價值、法律要求與機密性進行分類。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.13 資訊標示</div><div class="cheat-item-desc">應依資訊分級體系，建立適當的標示程序。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.14 資訊傳遞</div><div class="cheat-item-desc">各類資訊傳遞設施應有適當的安全保護與協議。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.15 存取控制</div><div class="cheat-item-desc">應建立基於業務和安全要求的存取控制政策。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.16 身分管理</div><div class="cheat-item-desc">應管理身分生命週期，確保帳號的安全發放與停用。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.17 鑑別資訊</div><div class="cheat-item-desc">應配置安全程序管理鑑別資訊(如密碼)，確保機密性。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.18 存取權限</div><div class="cheat-item-desc">依據存取政策提供、審查、修改與移除權限。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.19 供應商關係的資訊安全</div><div class="cheat-item-desc">應與供應商約定資訊安全要求以降低風險。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.20 供應商協議中納入資訊安全</div><div class="cheat-item-desc">應將相關資安要求明訂於合約中。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.21 資訊與通訊技術(ICT)供應鏈的資安管理</div><div class="cheat-item-desc">應管理 ICT 產品或服務供應鏈的資安風險。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.22 供應商服務之監視、審查與變更</div><div class="cheat-item-desc">應定期監視與審核供應商服務交付情況。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.23 使用雲端服務的資訊安全</div><div class="cheat-item-desc">雲端服務的獲取、使用、管理與退出應具備資安規範。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.24 資安事件管理之規劃與準備</div><div class="cheat-item-desc">應規劃事件回應流程，包含責任與程序。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.25 資安事件的評估與決策</div><div class="cheat-item-desc">應評估資安異常狀態，並判定是否為資安事件。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.26 處理資訊安全事件</div><div class="cheat-item-desc">應根據書面化程序處置資安事件。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.27 從資訊安全事件中學習</div><div class="cheat-item-desc">應利用歷史事件的知識改善現有安全控制措施。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.28 證據的收集</div><div class="cheat-item-desc">應建立鑑識證據的收集、保留與呈現程序。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.29 營運中斷期間的資訊安全</div><div class="cheat-item-desc">在災難期間仍需維持資安控制措施的運作。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.30 營運持續之 ICT 準備度</div><div class="cheat-item-desc">確保資訊與通訊系統在災難發生時能滿足復原目標。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.31 法律、法規及合約要求的識別</div><div class="cheat-item-desc">必須識別並更新所有適用的法規與合約要求。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.32 智慧財產權 (IPR)</div><div class="cheat-item-desc">實施適當程序，以確保符合軟體著作權等智財權規範。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.33 紀錄的保護</div><div class="cheat-item-desc">保護紀錄免於遺失、銷毀、偽造與未經授權的存取。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.34 個人可識別資訊 (PII) 隱私與保護</div><div class="cheat-item-desc">確保處理個資時符合相關隱私法規 (如 GDPR/個資法)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.35 資訊安全的獨立審查</div><div class="cheat-item-desc">定期由獨立的稽核員審查資訊安全實作的合規性。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.36 資訊安全政策、規則與標準的遵循性</div><div class="cheat-item-desc">管理者應定期審核其責任範圍內的資安遵循狀況。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">5.37 書面化的作業程序</div><div class="cheat-item-desc">資安營運程序應被書面化、維持並供相關人員取用。</div></div>
+                </div>
+            </details>
+
+            <details class="cheat-category">
+                <summary>A.6 人員控制 (People controls) - 8 項</summary>
+                <div class="cheat-list">
+                    <div class="cheat-item"><div class="cheat-item-title">6.1 任用前審查</div><div class="cheat-item-desc">應依據適用的法律及業務需求，對所有候選人進行背景審查。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">6.2 任用條款與條件</div><div class="cheat-item-desc">僱傭合約應明確規定員工與組織對資安的責任。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">6.3 資訊安全認知、教育與訓練</div><div class="cheat-item-desc">員工應接受適當的資安意識訓練與政策更新宣導。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">6.4 懲戒程序</div><div class="cheat-item-desc">應有正式的懲戒流程，以處分發生資安違規的人員。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">6.5 結束或變更任用的責任</div><div class="cheat-item-desc">離職或職務異動後，應維持保密責任並撤銷存取權。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">6.6 保密或不洩密協議</div><div class="cheat-item-desc">需鑑別保密需求，並要求員工及外部人員簽署 NDA。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">6.7 遠距工作</div><div class="cheat-item-desc">應實施控制措施以保護在組織場域外存取或處理的資訊。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">6.8 資訊安全事件通報</div><div class="cheat-item-desc">人員應盡速經由適當管道通報觀察到或懷疑的資安弱點/事件。</div></div>
+                </div>
+            </details>
+
+            <details class="cheat-category">
+                <summary>A.7 實體控制 (Physical controls) - 14 項</summary>
+                <div class="cheat-list">
+                    <div class="cheat-item"><div class="cheat-item-title">7.1 實體安全周界</div><div class="cheat-item-desc">應定義並使用周界(如牆壁、刷卡門)以保護含敏感資訊的區域。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.2 實體進入控制</div><div class="cheat-item-desc">安全區域應受適當的進出控制保護，僅限授權人員進入。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.3 保護辦公室、房間與設施</div><div class="cheat-item-desc">應針對工作場所的實體安全設計防護措施。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.4 實體安全監視</div><div class="cheat-item-desc">場所應受持續的監控(如 CCTV 或保全)防範未授權進出。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.5 防範外部及環境威脅</div><div class="cheat-item-desc">應設計防護措施以對抗火災、水災、地震或破壞行為。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.6 在安全區域內工作</div><div class="cheat-item-desc">應設計在安全管制區域內作業的保護與隔離程序。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.7 桌面及螢幕淨空</div><div class="cheat-item-desc">離開座位時應將敏感文件收妥，並將電腦螢幕鎖定。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.8 設備的安置與保護</div><div class="cheat-item-desc">設備應安放在妥善地點以降低環境威脅及未授權存取風險。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.9 組織場域外之資產安全</div><div class="cheat-item-desc">筆電等帶離公司的資產，應有相應的防竊與加密保護。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.10 儲存媒體</div><div class="cheat-item-desc">儲存媒體應依分級妥善管理，運輸中需加密保護。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.11 支援基礎設施 (水電空調)</div><div class="cheat-item-desc">設備應受保護以防止電力故障與其他公共服務中斷(如不斷電系統)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.12 佈線安全</div><div class="cheat-item-desc">傳輸資料或支援資訊服務的纜線應受保護免於被截聽或破壞。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.13 設備維護</div><div class="cheat-item-desc">應定期維護設備以確保其持續可用性與完整性。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">7.14 設備的報廢與安全再利用</div><div class="cheat-item-desc">報廢或轉讓設備前，應確認儲存媒體已覆寫或物理破壞。</div></div>
+                </div>
+            </details>
+
+            <details class="cheat-category">
+                <summary>A.8 科技控制 (Technological controls) - 34 項</summary>
+                <div class="cheat-list">
+                    <div class="cheat-item"><div class="cheat-item-title">8.1 使用者端點裝置</div><div class="cheat-item-desc">處理組織資訊的端點(如手機/筆電)應受適當配置管理(MDM)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.2 特權存取權限</div><div class="cheat-item-desc">管理員(Root/Admin)權限的配置應受嚴格限制與監控。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.3 資訊存取限制</div><div class="cheat-item-desc">應根據存取控制政策，限制使用者對應用程式與資訊的存取。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.4 原始碼的存取</div><div class="cheat-item-desc">程式原始碼應受嚴格管制，避免遭未授權讀取或竄改。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.5 安全鑑別</div><div class="cheat-item-desc">依據風險等級部署強認證技術(如 MFA 雙因素驗證)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.6 容量管理</div><div class="cheat-item-desc">應監視資源使用情況並預測容量需求，確保系統效能。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.7 防範惡意軟體</div><div class="cheat-item-desc">應實作偵測與防護軟體(如防毒、EDR)及使用者意識防範機制。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.8 技術脆弱性管理</div><div class="cheat-item-desc">及時獲取系統弱點情報並評估風險，執行修補更新(Patch)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.9 組態管理 (Configuration management)</div><div class="cheat-item-desc">軟硬體與網路的組態應予以標準化與建立基線安全。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.10 資訊刪除</div><div class="cheat-item-desc">當不再需要資訊時，應將儲存在系統或雲端的資料徹底抹除。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.11 資料遮罩 (Data masking)</div><div class="cheat-item-desc">應對敏感個資進行去識別化或遮罩處理，以符合隱私法規。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.12 資料外洩防護 (DLP)</div><div class="cheat-item-desc">應實作 DLP 措施防範機密資訊未經授權被傳輸到系統外部。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.13 資訊備份</div><div class="cheat-item-desc">應定期備份資料與系統並進行復原測試，最好做到異地存放。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.14 資訊處理設施的備援</div><div class="cheat-item-desc">關鍵系統應建立高可用性架構(HA)以滿足持續營運需求。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.15 日誌紀錄 (Logging)</div><div class="cheat-item-desc">系統應記錄異常活動、管理者操作及存取事件，並妥善保護。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.16 監控活動</div><div class="cheat-item-desc">應持續監控網路與系統行為以發掘潛在資安事件(如 SOC)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.17 時鐘同步</div><div class="cheat-item-desc">全組織資訊系統的時鐘應與單一精確時間源(NTP)同步。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.18 特權公用程式使用</div><div class="cheat-item-desc">可跨越系統控制的工具(如修復程式)應受嚴格管制與限制使用。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.19 運作系統上的軟體安裝</div><div class="cheat-item-desc">應具備程序來管控營運環境(Production)中的軟體安裝與更新。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.20 網路安全</div><div class="cheat-item-desc">應妥善管理網路設備並控制流量，以保護系統與應用程式。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.21 網路服務的安全</div><div class="cheat-item-desc">使用內部或外部網路服務時應鑑定相關安全機制與服務水準。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.22 網路隔離</div><div class="cheat-item-desc">應將資訊系統、使用者或服務分組隔離(如 VLAN、DMZ 劃分)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.23 網頁過濾 (Web filtering)</div><div class="cheat-item-desc">應限制使用者存取惡意或不適當的外部網站。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.24 密碼學的使用</div><div class="cheat-item-desc">應制定政策以確保有效使用密碼與金鑰管理保護機密性。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.25 安全系統開發生命週期 (SSDLC)</div><div class="cheat-item-desc">開發軟體與系統時，應將安全規則貫穿整個生命週期。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.26 應用程式安全要求</div><div class="cheat-item-desc">在取得或開發應用程式前，應先鑑別其資安需求。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.27 安全系統架構與工程原則</div><div class="cheat-item-desc">開發時應遵循安全設計原則(如深度防禦、最小權限原則)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.28 安全編碼 (Secure coding)</div><div class="cheat-item-desc">撰寫程式時應應用安全編碼原則防範注入等常見漏洞(如 OWASP)。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.29 開發與驗收中的安全測試</div><div class="cheat-item-desc">系統上線前應執行弱點掃描、滲透測試或源碼檢測。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.30 委外開發</div><div class="cheat-item-desc">組織應督導與管控由供應商開發的軟體安全。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.31 開發、測試及運作環境之分離</div><div class="cheat-item-desc">為了降低未經授權變更的風險，DEV、UAT與PROD環境應隔離。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.32 變更管理</div><div class="cheat-item-desc">對資訊處理設施的變更，應受到嚴格控管並留下軌跡紀錄。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.33 測試資訊</div><div class="cheat-item-desc">嚴禁直接使用真實營運資料(如客戶真實驗證碼/卡號)進行測試，應遮罩處理。</div></div>
+                    <div class="cheat-item"><div class="cheat-item-title">8.34 稽核測試期間的系統保護</div><div class="cheat-item-desc">進行資安稽核與測試活動時，應小心規劃以免影響營運服務。</div></div>
+                </div>
+            </details>
+        </div>
+    </div>
+</div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+        osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        if (type === 'click') { osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(300, now + 0.1); gainNode.gain.setValueAtTime(0.5, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.1); } 
+        else if (type === 'success') { osc.type = 'triangle'; osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(600, now + 0.1); osc.frequency.linearRampToValueAtTime(1000, now + 0.3); gainNode.gain.setValueAtTime(0.3, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5); osc.start(now); osc.stop(now + 0.5); } 
+        else if (type === 'fail') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(150, now + 0.3); gainNode.gain.setValueAtTime(0.3, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } 
+        else if (type === 'alert') { osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(300, now + 0.1); gainNode.gain.setValueAtTime(0.3, now); gainNode.gain.linearRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); }
+    }
+
+    // --- 請將 25 題題庫陣列放回這裡 ---
+    const cases = [
+  {
+    id: 14,
+    title: "盡責的主管簽名",
+    desc: "地點：行銷部。你正在查核「使用者存取權限審查」的落實狀況。",
+    evidence: {
+      interview: "行銷部主管：『IT 每個半年都會派發權限清單請我們審查。我很盡責喔，上週才剛逐筆核對完我們部門所有人的權限，並親筆簽名回傳給 IT 了。』",
+      doc: "查閱《存取控制政策》：『各部門主管應至少每半年，或於員工職務異動時，審查其部屬之系統存取權限，確保符合最小權限原則。』",
+      observation: {
+        type: "text",
+        content: "你檢視該份有主管簽名的審查報表。你注意到清單上有一位員工 Alice，她在四個月前從「人資部」輪調到「行銷部」。但報表上 Alice 仍然擁有『HR_薪資結算系統_Admin』的權限，且行銷主管在旁邊勾選了「保留權限」。"
+      }
+    },
+    options: [
+      { text: "觀察事項：標準要求每半年審核全縣，行銷主管僅需於六個月後確認Alice權限正確即可。", correct: false },
+      { text: "不符合事項：未於職務異動時調整權限，且定期審查流於形式，未能發現異常權限。", correct: true },
+      { text: "觀察事項：行銷主管人員僅應負責審查行銷相關權限，稽核員僅許提出提醒與建議即可。", correct: false }
+    ],
+    explanation: "這是「盲目簽核 (Rubber Stamping)」的典型案例。人員調職未拔除舊權限 (A.5.18, A.6.5)，可視為主管上周的定期審查失效，只是為了應付稽核而簽名，這屬於權限管理上的重大缺失。"
+  },
+  {
+    id: 5,
+    title: "保險箱裡的緊急密碼",
+    desc: "地點：IT 主管辦公室。你看見 IT 主管打開保險箱，拿出一個信封，將裡面寫有密碼的紙條交給工程師去操作伺服器。",
+    evidence: {
+      interview: "IT 主管：『因為剛剛特權帳號管理系統 (PAM) 當機，為了搶修系統，我啟用了緊急備用的 Break-glass 帳號。』",
+      doc: "查閱《帳號管理程序 - 緊急應變章節》：『當自動化授權系統失效時，可啟用實體封存的最高權限密碼，但需雙人會同開啟，並於事後立即變更密碼。』",
+      observation: {
+        type: "img",
+        src: "images/05_seal.png",
+        caption: "你檢查該信封，發現拆封前壓有兩位主管的簽名封條。工程師操作完畢後，主管立刻變更了該組密碼並重新彌封。"
+      }
+    },
+    options: [
+      { text: "不符合事項：密碼明文寫在紙上且進行傳遞。", correct: false },
+      { text: "沒有問題。這是符合程序授權的緊急存取機制。", correct: true },
+      { text: "不符合事項：職務代理人制度不清。", correct: false }
+    ],
+    explanation: "這是合規的陷阱題！雖然書寫密碼通常違規，但在「緊急應變程序」中，實體封存的最高權限帳號（Break-glass Account）是用來救命的。只要符合「封存保管」、「啟用授權」與「事後改密」的軌跡，就是合格的控制措施。"
+  },
+  {
+    id: 20,
+    title: "友善的櫃檯與熟面孔",
+    desc: "地點：公司一樓大門與接待櫃檯。你正在觀察實體門禁的管制狀況。",
+    evidence: {
+      interview: "總機小姐：『那位是送蒸餾水的陳大哥啦！他每個禮拜二都會來換水，我們都認識三年了，很熟啦！所以我就直接幫他刷卡開門，讓他自己推進去茶水間換水，這樣比較有效率。』",
+      doc: "查閱《實體安全管制程序》：『所有非本公司員工之訪客或外包商，進入內部辦公區域前均須登記換證，並由內部員工全程陪同 (Escort)。』",
+      observation: {
+        type: "img",
+        src: "images/20_water.png",
+        caption: "你觀察到送水員獨自推著水桶進入了內部辦公區，經過了財務部與研發部，並在無人看管的茶水間待了 5 分鐘後才離開。訪客登記簿上沒有他的名字，他身上也沒有配戴任何訪客證。"
+      }
+    },
+    options: [
+      { text: "沒有問題，因為他是長期合作且信任的供應商，可以給予例外方便。", correct: false },
+      { text: "觀察事項：由總機小姐刷卡開門已屬於完成進出授權動作，建議茶水間門口可以裝一個監視器即可。", correct: false },
+      { text: "不符合事項：外部人員未經登記、換證且無人陪同即進入內部安全區域。", correct: true }
+    ],
+    explanation: "社交工程與實體安全最常在「熟面孔」上潰堤。規範就是規範 (A.7.2 實體進入控制)，常態性的便宜行事會造成巨大的實體安全漏洞（例如被植入竊聽器或偷插隨身碟），不能以「認識很久」作為免除管制的理由。"
+  },
+  {
+    id: 11,
+    title: "時空膠囊筆電",
+    desc: "地點：研發部。工程師阿豪剛領到一台「備用筆電」來測試舊系統。稽核員上前檢查這台資產編號為 'IT-NB-2005' 的電腦。",
+    evidence: {
+      interview: "工程師阿豪：『喔，因為我要測舊 code，IT 就從倉庫隨便拿一台舊電腦給我。我一開機就發現裡面裝好了「嘸蝦米輸入法」跟一些遊戲，應該是上一個離職學長留下來的吧？這不是我裝的喔！』",
+      doc: "查閱《軟體資產清冊》：該設備編號已在前年標示為已完成資料清除與回收",
+      observation: {
+        type: "img",
+        src: "images/11_XP.png",
+        caption: "打開電腦進入Windows XP 專業版作業系統，並進入熟悉的藍天白雲畫面，桌面上留有『嘸蝦米輸入法』、『WIN RAR』與『世紀帝國 II』的捷徑。機身背後的微軟授權貼紙已磨損模糊，依稀可見 'Home Edition' 字樣。"
+      }
+    },
+    options: [
+      { text: "僅有 1 個問題：使用生命週期結束 (EOL) 的作業系統，有技術脆弱性風險。", correct: false },
+      { text: "有 2 個問題：包含 EOL 風險，以及未確實清除前手資料。", correct: false },
+      { text: "有 3 個以上複合缺失：作業系統 EOL、未確實清除資料、管理紀錄與實際情形不符、安裝未授權軟體。", correct: true }
+    ],
+    explanation: "這是一個「全家桶」級別的嚴重缺失！<br>1. 授權合規風險 (A.5.32)：貼紙是 Home 版，實際跑的卻是 Professional 版。這代表 IT 可能為了方便，使用了非正規授權的版本重灌，且輸入法跟解壓縮軟體可能也是未授權版本。<br>2. 資料清除失效 (A.8.10)：前手資料與遊戲殘留，證明資產回收流程完全崩潰。<br>3. 技術脆弱性 (A.8.8)：使用官方已停止支援的 XP 連網。<br>稽核員可據此開立主要不符合事項 (Major NC)。"
+  },
+  {
+    id: 1,
+    title: "離職員工的帳號",
+    desc: "地點：IT 部門。你正在查核「人員異動管理」流程。上週有一位行銷經理 Kevin 離職了。",
+    evidence: {
+      interview: "IT 管理員：『Kevin 上週五離職，但我這兩天比較忙，還沒來得及把他的系統帳號停用，反正他不透過公司網路也連不進來。』",
+      doc: "查閱該公司的《存取控制程序 (SOP-005)》：『員工離職生效日當天，必須立即移除或停用其所有系統存取權限。』",
+      observation: {
+        type: "img",
+        src: "images/01_kevin.png",
+        caption: "你查看管理員說的系統，發現 Kevin 的帳號狀態仍顯示為「Enabled (啟用)」。"
+      }
+    },
+    options: [
+      { text: "沒有問題，因為他也連不進來。", correct: false },
+      { text: "不符合事項：未依規定在離職日移除存取權限。", correct: true },
+      { text: "觀察事項：SOP 要求當天寫得太嚴格了，應該放寬。", correct: false }
+    ],
+    explanation: "SOP 要求立即停用，但實際執行有延遲。這違反了 A.5.15、16 存取權限與離職程序的規定，若該帳號被盜用將造成風險。"
+  },
+  {
+    id: 24,
+    title: "沒有 MFA 雙重認證的系統",
+    desc: "地點：工廠產線中控室。你正在查核存取控制的實作情況。",
+    evidence: {
+      interview: "廠務工程師：『這台控制機械手臂的系統是十年前買的，屬於封閉式的特製系統。我們只有設定一組共用帳號密碼 (Admin/1234) 讓早晚班輪流登入，完全沒有你們說的那種什麼手機簡訊雙重認證 (MFA)。』",
+      doc: "查閱《存取控制政策》：『所有系統之管理者權限登入，皆應強制啟用多因子鑑別 (MFA)。若因技術限制無法實作，應提出風險評估與補償性控制措施，並經管理階層核准。』",
+      observation: {
+        type: "text",
+        content: "你查閱了最新的《年度風險評估報告》。報告中明確記錄了該機台無法支援 MFA 及共用帳號的風險，但因機台處於斷網的封閉環境 (Air-gapped)，且進入該機房需雙人刷卡與指紋辨識。總經理已於報告上簽名「接受此風險 (Risk Acceptance)」。"
+      }
+    },
+    options: [
+      { text: "沒有問題。已落實風險評估，採取了補償性控制，且管理階層已正式接受風險。", correct: true },
+      { text: "不符合事項：共用帳號且無 MFA，違反存取控制的最基本要求。", correct: false },
+      { text: "不符合事項：老舊系統應立即汰換，不能以接受風險作為不修補的藉口。", correct: false }
+    ],
+    explanation: "ISO 27001 是一套「風險管理框架」，而不是「完美安全框架」。當遇到技術瓶頸時，只要能識別風險、提出補償性控制（實體雙人門禁+斷網），並走完「風險接受 (Risk Acceptance)」的正式簽核流程，這就是完全符合 ISO 27001 精神的做法。"
+  },
+  {
+    id: 15,
+    title: "被抹除的案發現場",
+    desc: "地點：IT Helpdesk 辦公室。你在了解過去一年的資安事件通報狀況。",
+    evidence: {
+      interview: "IT 工程師：『上個月有位員工不小心點了釣魚信件的附件，中了勒索病毒。還好我反應快！我立刻拔掉他的網路線，然後花一小時把那台筆電整台重灌 (Re-image)。病毒完全沒擴散，公司零損失！因為馬上解決了，所以我就沒去填那份落落長的資安事件通報單。』",
+      doc: "查閱《資安事件管理程序》：『所有疑似或確認之資安事件，無論影響範圍大小，皆須通報並記錄於事件追蹤系統，並妥善保存相關證據。』",
+      observation: {
+        type: "text",
+        content: "你登入「資安事件追蹤系統」查詢，過去半年內的紀錄皆為「無資安事件」。"
+      }
+    },
+    options: [
+      { text: "沒有問題，工程師處置得宜，及時止損最重要。", correct: false },
+      { text: "觀察事項：工程師反應迅速值得嘉獎，建議補填資安事件紀錄單即可。", correct: false },
+      { text: "不符合事項：未依規定通報與紀錄資安事件，且直接重灌導致數位鑑識證據滅失。", correct: true }
+    ],
+    explanation: "IT 人員常有「修好就沒事了」的迷思。不記錄事件會導致管理層無法評估真實風險 (A.5.24, A.5.26)，而未經調查直接重灌，更是摧毀了找出感染源與追蹤潛在災情的數位證據 (A.5.28 證據的收集)。"
+  },
+  {
+    id: 8,
+    title: "報廢筆電的下落",
+    desc: "地點：IT 倉庫。有一批舊筆電準備便宜賣給員工做公益拍賣，你隨機抽驗了一台。",
+    evidence: {
+      interview: "IT 人員：『這些電腦我們都已經手動刪除資料了，也把資源回收桶清空了，絕對安全。』",
+      doc: "查閱《資產處置與報廢程序》：『儲存媒體處置前，必須使用覆寫軟體或消磁/破壞方式，確保資料無法復原。』",
+      observation: {
+        type: "text",
+        content: "你將電腦開機進入 Windows，打開『檔案總管』看C槽確實是空的。但你使用隨身碟執行免費的救援軟體掃描，竟然掃描出上一位使用者的『薪資單.pdf』。"
+      }
+    },
+    options: [
+      { text: "沒有問題，因為檔案總管看起來已經空了，一般人沒事不會去復原檔案。", correct: false },
+      { text: "不符合事項：未落實儲存媒體的安全清除程序，導致敏感資料可被復原。", correct: true },
+      { text: "觀察事項：建議下次改用格式化 (Format) 指令。", correct: false }
+    ],
+    explanation: "單純的「刪除」或「格式化 (Format)」並不會真正抹除資料，只是把目錄清掉。稽核員可建議使用專用軟體進行多次覆寫或物理破壞，才能防止資料被還原(A.8.10)。"
+  },
+  {
+    id: 23,
+    title: "一問三不知的新人",
+    desc: "地點：客服部。你正在抽查員工對於資訊安全政策的認知程度 (Awareness)。",
+    evidence: {
+      interview: "客服專員小李：『ISO 27001？那是什麼？資安政策喔...我不清楚耶，我也不知道如果不小心點了釣魚信件要通報給誰，我只會接聽客戶的客訴電話。』",
+      doc: "查閱《資訊安全教育訓練辦法》：『新進員工必須於到職日起 30 日內完成「資訊安全基礎認知訓練」並通過測驗。』",
+      observation: {
+        type: "text",
+        content: "你請人資主管調出小李的到職紀錄。系統顯示小李是昨天才剛報到的新進員工，且他的新人訓練排程定於下週三進行。"
+      }
+    },
+    options: [
+      { text: "不符合事項：員工對資安政策毫無認知，違反 A.6.3 資安認知教育要求。", correct: false },
+      { text: "不符合事項：未完成資安訓練前，不應讓員工接觸任何公司業務，該情境可能會在客訴電話中洩漏公司機密。", correct: false },
+      { text: "沒有問題。該員工尚在規定的訓練寬限期 (30天) 內，符合公司既定程序。", correct: true }
+    ],
+    explanation: "稽核必須「依據公司的規定來查核公司」。雖然員工缺乏資安意識是事實，但公司的 SOP 允許 30 天的緩衝期，且人資已安排好下週的課程。在未逾期且公司人員入職流程有完整控管機制的情況下，應屬合規 (A.6.3)。"
+  },
+  {
+    id: 3,
+    title: "供應商的合約",
+    desc: "地點：採購/法務部門。你正在抽查與新合作的「數據分析公司」的合約。",
+    evidence: {
+      interview: "採購專員：『這家廠商技術很好，而且是前IT同仁離職後開的，我們急著上線專案，所以先簽了報價單就開始跑資料了，正式合約還在跑流程。』",
+      doc: "查閱《供應商關係管理辦法》：『涉及機密資料交換前，必須簽署 NDA (保密協定) 並明訂資安要求。』",
+      observation: {
+        type: "text",
+        content: "你檢查該專案資料夾，發現已經存有大量客戶 PII 檔案，但找不到任何已簽署的 NDA 文件。"
+      }
+    },
+    options: [
+      { text: "不符合事項：在未簽署 NDA 與資安協議前即開始交換敏感資料。", correct: true },
+      { text: "不符合事項：前任員工不應再接觸前公司專案", correct: false },
+      { text: "沒有問題，報價單視同合約。", correct: false }
+    ],
+    explanation: "這是供應商管理 (A.5.19) 的大忌。在沒有法律文件 (NDA/SLA) 約束的情況下釋出資料，一旦發生外洩，公司將面臨求償無門的風險。"
+  },
+  {
+    id: 12,
+    title: "完美外包商的證書",
+    desc: "地點：採購部。你正在審查公司核心「雲端客戶數據分析系統」的外包商資安評估文件。",
+    evidence: {
+      interview: "採購經理：『這家廠商非常安全，我們特別要求他們必須具備 ISO 27001 認證才能合作。你看，這是他們上個月剛更新的有效證書，絕對沒問題。』",
+      doc: "查閱《供應商關係管理辦法》：『委託處理機密或客戶數據之供應商，應具備 ISO 27001 或同等之資安認證，且其驗證範圍需涵蓋受託之服務。』",
+      observation: {
+        type: "img",
+        src: "images/12_cert.png",
+        caption: "你仔細端詳該張 ISO 27001 證書，有效期限確實到 2028 年，但下方的「驗證範圍 (Scope)」寫著：『總部大樓之實體保全與薪資發放印製服務』。"
+      }
+    },
+    options: [
+      { text: "沒有問題，只要整間公司有一張有效的 ISO 27001 證書即可。", correct: false },
+      { text: "觀察事項：建議採購經理下次對廠商進行第二方稽核比較實在。", correct: false },
+      { text: "不符合事項：供應商的證書範圍未涵蓋本次委託的「雲端數據分析」服務。", correct: true }
+    ],
+    explanation: "這是供應商管理最常見的盲點！許多廠商會用無關緊要的業務（例如純辦公室行政）去考取 ISO 27001 來當作行銷招牌。稽核員不能只看「有沒有證書」，必須核對「驗證範圍 (Scope)」是否與委託的服務相符 (A.5.19 / A.5.22)。"
+  },
+  {
+    id: 21,
+    title: "沒關門的機密檔案室",
+    desc: "地點：人資部檔案室。你正在進行實體安全巡視，走到存放全公司實體人事資料與薪資單的「機密檔案室」門口。",
+    evidence: {
+      interview: "人資專員：『我剛剛在門旁的印表機那邊印資料，只有離開兩分鐘而已，所以就沒把檔案室的門鎖上，反正我隨時盯著門口。』",
+      doc: "查閱《實體安全與桌面淨空政策》：『存放機密資訊之安全區域，人員離開時必須確保門禁上鎖；機密文件於非使用期間應收妥。』",
+      observation: {
+        type: "img",
+        src: "images/21_confroom.png",
+        caption: "你發現檔案室的門確實半掩著，桌上還攤開著幾份薪資單。你抬頭觀察四周，發現整個人資部辦公區本身就是一個獨立的安全管制區，進出需要人資人員門禁卡，且該區域目前沒有任何非人資部門的訪客或員工。"
+      }
+    },
+    options: [
+      { text: "不符合事項：人員離開座位未收妥機密文件，且檔案室未上鎖，違反桌面淨空與門禁規定。", correct: false },
+      { text: "沒有問題 (或僅列觀察事項)。因為整個大區域已有嚴格的邊界防護，風險在可控範圍內。", correct: true },
+      { text: "不符合事項：人員在機密檔案室外面印資料有點可疑，可能是想趁稽核員來的時候印出公司機密帶走並嫁禍給稽核員。", correct: false }
+    ],
+    explanation: "雖然單看檔案室的門沒鎖似乎違規，但 A.7.1 (實體安全周界) 允許使用多層防護。既然整個 HR 部門已經是獨立的嚴格管制區，內部的次級管制區在有員工視線監控下短暫開啟，其風險極低，通常不構成主要缺失，頂多列為建議改善的觀察事項。"
+  },
+  {
+    id: 17,
+    title: "免費的AI SaaS服務",
+    desc: "地點：業務部。你正在了解各部門的資料處理流程。",
+    evidence: {
+      interview: "業務副總：『最近我們部門導入了一個國外新創的 AI 語音轉文字雲端服務。我們把跟客戶開會的錄音檔傳上去，它 3 秒鐘就能生成完美的會議記錄。重點是它現階段完全免費，替公司省了超多錢！』",
+      doc: "查閱《雲端服務使用安全規範》：『凡涉及傳輸或處理公司內部及機密資訊之雲端服務，啟用前必須經由 IT 與資安部門進行風險評估與核准。』",
+      observation: {
+        type: "text",
+        content: "你轉頭向資安官詢問這個 AI 服務，資安官一臉茫然表示：「他們有在用這個？我們完全不知道，也沒做過任何資安評估。」"
+      }
+    },
+    options: [
+      { text: "不符合事項：未經授權與評估即使用外部雲端服務處理機密資料（影子 IT 問題）。", correct: true },
+      { text: "沒有問題，因為是免費軟體，未涉及採購流程，各部門可自行決定。", correct: false },
+      { text: "觀察事項：與客戶會議紀錄應該不算內部機密，提醒業務部不要上傳太機密的錄音檔即可。", correct: false }
+    ],
+    explanation: "這就是標準的「影子 IT (Shadow IT)」。員工為了方便引進未經審批的外部 SaaS 服務 (A.5.23 使用雲端服務的資訊安全)，將導致機密資料流向不可控的外部環境，面臨極高的外洩風險。"
+  },
+  {
+    id: 13,
+    title: "實用的測試資料",
+    desc: "地點：系統開發部。開發團隊正在 UAT (使用者驗收測試) 環境測試新的 CRM 系統功能。",
+    evidence: {
+      interview: "QA 工程師：『我們非常遵守資安規範，絕對不用真實的生產環境資料來測試。我們寫了一支程式，把資料庫裡的客戶姓名全部打亂成亂碼了，你可以檢查看看。』",
+      doc: "查閱《安全系統開發與測試規範》：『測試環境禁止使用未經遮罩或去識別化之真實生產資料 (Production Data) 包含 PII 個人可識別資訊。』",
+      observation: {
+        type: "text",
+        content: "你查看 UAT 資料庫，客戶的「姓名」欄位確實變成了 'Xqz Abc' 等亂碼。但你滑到右邊，發現「Email」欄位仍是真實的 kevin@bentsu...，且「手機號碼」欄位也是真實且可撥通的數字。"
+      }
+    },
+    options: [
+      { text: "沒有問題，姓名已經遮罩，無法直接辨識特定個人。", correct: false },
+      { text: "不符合事項：測試資料去識別化不完全，仍暴露真實的 PII（Email與電話）。", correct: true },
+      { text: "觀察事項：做得不錯，但建議下次把電話號碼也遮一下會更好。", correct: false }
+    ],
+    explanation: "典型的「做半套」。雖然姓名遮罩了，但 Email 和手機號碼同樣屬於高度敏感的個人可識別資訊 (PII)。在測試環境暴露這些資料，一旦測試機被駭，依然會造成嚴重的個資外洩 (A.8.33 測試資訊 / A.8.11 資料遮罩)。"
+  },
+  {
+    id: 7,
+    title: "凌亂的辦公桌",
+    desc: "地點：行銷部。你看到一位行銷專員離開座位去開會了，但他的桌上堆滿了各式各樣的文件，沒有收進抽屜。",
+    evidence: {
+      interview: "鄰座同事：『他剛剛趕著去開會，這些傳單好像是明天活動要發的，應該沒關係吧？』",
+      doc: "查閱《資訊資產分級與標示規範》：『機密(Confidential)與限閱(Restricted)文件於非使用期間應收妥上鎖；一般(Internal)與公開(Public)資訊則不強制淨空，惟需整潔。』",
+      observation: {
+        type: "img",
+        src: "images/07_summer.png",
+        caption: "你仔細檢視桌上的文件，全部都是即將對外發放的「夏季促銷廣告傳單」，你看了一眼活動時間，剛好是從明天開始"
+      }
+    },
+    options: [
+      { text: "不符合事項：違反桌面淨空政策，各種資料都必須收起來，且保持整潔。", correct: false },
+      { text: "沒有問題 ：該文件分級為「公開」，無外洩風險，不適用強制淨空要求。", correct: true },
+      { text: "觀察事項：桌面太亂影響公司形象，建議開立缺失。", correct: false }
+    ],
+    explanation: "這是一個經典的陷阱。ISO 27001 的重點是「保護資訊資產」。既然文件是明天活動的廣告傳單，雖說可能需進一步驗證，但多半是屬於公開等級的文件，也就不存在「機密外洩」的風險。稽核員應依據《資訊分級規範》判斷，而非無差別要求所有紙張都要收起來。"
+  },
+  {
+    id: 19,
+    title: "上了鎖的門，鑰匙插在上面",
+    desc: "地點：IT 基礎架構部。你正在查核「密碼學與金鑰管理」的落實情況。",
+    evidence: {
+      interview: "基礎架構工程師：『我們所有員工的筆電都啟用了硬碟全機加密 (BitLocker / AES-256)，就算筆電在捷運上被偷了，駭客也絕對打不開裡面的資料！完全符合規範。』",
+      doc: "查閱《密碼學控制與金鑰管理程序》：『加密金鑰 (Cryptographic keys) 之產生、儲存與銷毀，必須受到嚴格保護，防止未經授權之存取與外洩。』",
+      observation: {
+        type: "text",
+        content: "你詢問如果員工忘記開機密碼，IT 如何解鎖？工程師笑著打開部門公用的檔案伺服器 (Shared Drive)，點開一個名為「全公司_BitLocker_還原金鑰.xlsx」的 Excel 檔，裡面明文記錄了全公司 500 台電腦的解密金鑰。這個資料夾所有 IT 人員都能自由讀寫。"
+      }
+    },
+    options: [
+      { text: "不符合事項：加密金鑰未受到妥善的存取控制與保護，等同加密失效。", correct: true },
+      { text: "沒有問題，筆電本身確實已經完成 AES-256 強加密。", correct: false },
+      { text: "觀察事項：加密本身已執行，因此符合規範。建議那個 Excel 檔案可以再加上一個開啟密碼。", correct: false }
+    ],
+    explanation: "加密演算法再強，如果解密金鑰 (Recovery Key) 像電話簿一樣隨意存放在沒有嚴格存取控制的共享目錄中，整體安全防線形同虛設，已構成不符合事項。"
+  },
+  {
+    id: 25,
+    title: "公私不分的個人手機",
+    desc: "地點：業務部。你正在查核行動裝置與遠距工作安全 (BYOD)。",
+    evidence: {
+      interview: "業務副理：『我都用我自己的 iPhone 處理公司客戶的訂單跟看合約。啊對了，偶爾這支手機我也會給我三歲的女兒玩遊戲，所以有些遊戲 APP。』",
+      doc: "查閱《行動裝置管理 (BYOD) 辦法》：『允許員工使用私人設備處理公務，但必須安裝公司核發之 MDM (行動裝置管理) 描述檔，並將公務資料限制於加密的安全容器 (Workspace) 內。』",
+      observation: {
+        type: "text",
+        content: "你檢查業務副理的手機，發現確實裝了幾個遊戲，包含'原神'、'PUBG'、'魔法少女小圓'等。但 IT 人員向你展示，只要副理一打開「公司郵件/合約」的 APP，系統就會要求額外輸入一組獨立密碼；且 IT 可以在後台一鍵遠端刪除手機內所有的「公司資料」，而不會動到副理私人的照片或遊戲。"
+      }
+    },
+    options: [
+      { text: "不符合事項：私人手機借給兒童把玩且安裝不明軟體，極易感染惡意程式。", correct: false },
+      { text: "不符合事項：有些遊戲感覺並不是三歲女孩會玩的，可能是業務副理自己在玩，代表其未盡責任且資安意識不足", correct: false },
+      { text: "沒有問題。已落實 MDM 安全容器隔離技術，公私資料分離，符合 BYOD 管制要求。", correct: true }
+    ],
+    explanation: "在現代的工作環境中，自攜設備 (BYOD) 非常普遍。A.8.1 (使用者端點裝置) 的重點不在於「禁止使用私人設備」，而是「如何控制資料」。透過 MDM/MAM 建立的沙盒(Sandbox)技術，成功將公司資料與私人環境隔離，即使私人環境中毒，公司資料也能獲得保護，這是極佳的控制實作。"
+  },
+  {
+    id: 10,
+    title: "通往機房的鈴聲",
+    desc: "地點：通往機房的管制走廊。這裡原本有一道電子刷卡門，但似乎故障了。",
+    evidence: {
+      interview: "資安官：『那道電子門的感應器上週壞了，廠商料件要從國外進口，還要一個月才到。為了防止閒雜人等偷溜進去，我們暫時裝了「這個」裝置，並要求櫃台人員聽到聲音就要抬頭看。』",
+      doc: "查閱《實體安全管制程序》：『安全區域之進出點應受到監控 (Monitored)，以防止未經授權之存取。』公司政策並未強制規定必須使用電子監控。",
+      observation: {
+        type: "img",
+        src: "images/10_bell.png",
+        caption: "你看到門上用大力膠帶黏著一個便利商店常用的「叮咚！歡迎光臨」感應門鈴，聲音非常大。每次只要有人經過或開門，整個辦公室的人都會轉頭盯著看。"
+      }
+    },
+    options: [
+      { text: "不符合事項：使用廉價門鈴作為機房門禁，不符合實體安全的要求。", correct: false },
+      { text: "不符合事項：膠帶黏貼不美觀，有損公司形象。", correct: false },
+      { text: "沒有問題 (或僅列觀察事項)。此措施雖簡陋，但有效達到了「監控進出」與「嚇阻」的控制目的。", correct: true }
+    ],
+    explanation: "這是一個滑稽但合規的補償性控制。<br>ISO 27001 要求的是「監控」與「防止未授權進入」，並沒有規定一定要用幾百萬的生物辨識或門禁卡系統。在設備故障期間，透過「高分貝門鈴」加上「人員監視 (櫃台/同事)」，確實能有效達到「警示」與「監控」的效果。A.7.2/A.7.4"
+  },
+  {
+    id: 2,
+    title: "神秘的機房門",
+    desc: "地點：伺服器機房外。你正在進行「實體安全」的巡視。",
+    evidence: {
+      interview: "維運工程師：『裡面冷氣剛好壞了一台，溫度有點高，所以我們暫時把門打開通風一下，大家都在這附近顧著，沒事的。』",
+      doc: "查閱《實體與環境安全規範》：『機房屬於安全管制區域，進出應刷卡並隨時保持門禁關閉。』",
+      observation: {
+        type: "img",
+        src: "images/02_server room.png",
+        caption: "你看見機房厚重的鐵門被拿了一張椅子擋著，呈現半開狀態。"
+      }
+    },
+    options: [
+      { text: "不符合事項：破壞實體安全邊界，未經授權人員可能闖入。", correct: true },
+      { text: "可以接受，因為是為了降溫的緊急措施。", correct: false },
+      { text: "沒有問題，因為工程師說有人在顧。", correct: false }
+    ],
+    explanation: "機房門戶大開直接破壞了實體安全防線 (A.7.2)。即使是為了降溫，也應採取補償控制措施（如專人站崗管制），而非單純用椅子擋門。"
+  },
+  {
+    id: 22,
+    title: "公然張貼的密碼",
+    desc: "地點：公司接待大廳的訪客等候區。你正在檢查公共區域的資訊暴露風險。",
+    evidence: {
+      interview: "總機小姐：『為了方便來訪的客人上網，我把密碼印出來貼在牆上了，這樣他們就不用一直來問我。』",
+      doc: "查閱《存取控制與密碼管理規範》：『所有鑑別資訊 (包含密碼、金鑰等) 必須保密，嚴禁以明文書寫、張貼或透過未加密管道傳送。』",
+      observation: {
+        type: "img",
+        src: "images/22_wifi_pwd.png",
+        caption: "你看見牆上貼著一張精美的壓克力牌，上面寫著：『Welcome! 訪客專用 Wi-Fi 帳號：Guest_Net / 密碼：Welcome1234』。你實際連上該網路測試，發現只能連上外部網際網路，無法 Ping 到任何公司內網的伺服器。"
+      }
+    },
+    options: [
+      { text: "不符合事項：任何密碼以明文張貼於公共區域，嚴重違反密碼保密政策。", correct: false },
+      { text: "觀察事項：建議把密碼改複雜一點，並每三個月更換一次。", correct: false },
+      { text: "沒有問題。該密碼屬於低敏感度的公開資訊，且網路已做好實體/邏輯隔離。", correct: true }
+    ],
+    explanation: "ISO 27001 並非盲目要求所有東西都要藏起來，而是基於「資訊分級」(A.5.12)。訪客 Wi-Fi 密碼的本質就是「公開資訊 (Public)」，且該網路已與內網隔離 (A.8.22 網路隔離)。張貼公開資訊並不違反機密性原則。"
+  },
+  {
+    id: 18,
+    title: "透明的會議室",
+    desc: "地點：公司接待大廳旁的一號會議室外。這是一間用全透明玻璃隔間的現代化會議室，該公司打造其來接待來賓、開會。",
+    evidence: {
+      interview: "系統架構師：『我們剛在裡面開完新一代支付系統的架構規劃會議。因為下午還要接著討論，所以白板上的東西我們就先不擦了。』",
+      doc: "查閱《桌面與螢幕淨空政策》：『會議結束後，白板上之機密或敏感資訊必須擦拭清除，以防止未授權人員閱覽。』",
+      observation: {
+        type: "img",
+        src: "images/18_whiteboard.png",
+        caption: "會議室裡沒人。你透過大片落地窗玻璃看向白板，上面畫滿了伺服器架構圖，還寫著後台資料庫的真實 IP 位置與 Administrator 預設密碼。你走開後繞了一圈，10分鐘後回來依然保持原樣，但你注意到會議室的門有門禁，並且旁邊有玻璃霧化控制功能。"
+      }
+    },
+    options: [
+      { text: "沒有問題，因為他們下午還要繼續開會，擦掉太浪費時間。", correct: false },
+      { text: "觀察事項：建議公司以後會議室不要用全透明玻璃，或是要記得開啟霧化功能。", correct: false },
+      { text: "不符合事項：未落實白板淨空，且敏感資訊暴露於非特定人士可見之公共區域。", correct: true }
+    ],
+    explanation: "A.7.7 桌面與螢幕淨空不只針對辦公桌，也包含白板。由於會議室面向公共接待區，未清除敏感資訊已構成實質的洩漏風險，不能以「下午還要用」作為規備控制的藉口。雖然該會議室有一定保護控制措施，但以稽核員的觀察來看仍是不足的。"
+  },
+  {
+    id: 4,
+    title: "辦公桌上的秘密",
+    desc: "地點：一般辦公區。你在午休時間進行桌面淨空檢查。",
+    evidence: {
+      interview: "受訪員工：『這是我的座位，沒什麼好看的吧...?』",
+      doc: "查閱《桌面與螢幕淨空政策》：『人員離開座位時，應確保敏感資訊未暴露於桌面，且密碼不得書寫於隨手可得之處。』",
+      observation: {
+        type: "img",
+        src: "images/04_password.png",
+        caption: "你把電話拿起來，發現下面壓著一張黃色便利貼，上面寫著 'CRM: Admin / 123456'。"
+      }
+    },
+    options: [
+      { text: "沒有問題，他有藏好。", correct: false },
+      { text: "沒有問題，最危險的地方就是最安全的地方。", correct: false },
+      { text: "不符合事項：密碼以明文書寫並置於易取得處。", correct: true }
+    ],
+    explanation: "藏在電話下並不代表安全。密碼外洩是高風險行為，應要求員工記憶密碼或使用密碼管理工具，嚴禁書寫明文密碼。"
+  },
+  {
+    id: 16,
+    title: "隱形的資產",
+    desc: "地點：資訊處。你正在檢視公司的「資訊資產清冊 (Asset Register)」。",
+    evidence: {
+      interview: "資產管理員：『我們的資產盤點系統超強！每一台筆電、伺服器、甚至滑鼠和螢幕都有貼條碼，而且每年都會盤點，準確率 99.9%！』",
+      doc: "查閱《資產管理程序》：『組織應鑑別與資訊及資訊處理設施相關之資產，建立並維持資產清冊。』",
+      observation: {
+        type: "text",
+        content: "你翻閱那份厚達 500 頁的資產清冊，裡面詳盡列出了所有的硬體型號、MAC Address 與軟體授權。但是，你找不到「客戶交易資料庫」、「產品原始碼」、「年度財報」這些項目的登錄紀錄。"
+      }
+    },
+    options: [
+      { text: "沒有問題，只要存放資料的伺服器有被列管，資料自然就受到保護了。", correct: false },
+      { text: "不符合事項：清冊僅涵蓋實體硬體與軟體，遺漏了最重要的「資訊(Data/Information)」資產。", correct: true },
+      { text: "觀察事項：硬體盤點做得很棒，資訊資產並非「實體」資產，僅需建議列上，無須開立缺失。", correct: false }
+    ],
+    explanation: "很多公司誤將「IT 財產清冊」當成「資訊資產清冊」。ISO 27001 的核心是保護「資訊」(A.5.9)。硬體只是載體，如果連「客戶資料庫」這個資產的擁有者(Owner)是誰、機密等級多高都沒定義，保護措施將失去焦點。"
+  },
+  {
+    id: 6,
+    title: "被帶出公司的硬碟",
+    desc: "地點：公司大廳. 你看到備份管理員拿著一顆原本插在伺服器上的外接硬碟, 正準備走出大門.",
+    evidence: {
+      interview: "管理員：『這是我剛做完的完整備份 (Full Backup), 現在要送去老闆別墅的保險箱存放.』",
+      doc: "查閱《備份管理辦法》：『關鍵系統備份應定期執行異地保存 (Off-site Storage), 運送過程介質應有加密保護.』",
+      observation: {
+        type: "img",
+        src: "images/06_lock.png",
+        caption: "你攔下檢查該硬碟, 發現硬碟裝在上了鎖的防撞箱中. 你嘗試將其接上測試筆電, 系統立刻跳出視窗要求輸入 BitLocker 解密金鑰, 無法直接讀取內容."
+      }
+    },
+    options: [
+      { text: "不符合事項：公司資產與敏感資料不得攜出安全邊界，且帶去老闆別墅不合理。", correct: false },
+      { text: "不符合事項：使用外接硬碟備份太落伍了。", correct: false },
+      { text: "沒有問題。符合異地備份與媒體運送的加密規範。", correct: true }
+    ],
+    explanation: "備份資料必須「異地保存」以防範公司火災或勒索病毒。雖然將硬碟帶出看似高風險，但只要確保「實體安全（防撞箱）」與「邏輯安全（全碟加密）」，這就是符合 A.7.10、A.8.13、A.8.24 規範的標準作業流程。"
+  },
+  {
+    id: 9,
+    title: "消失的 Log 紀錄",
+    desc: "地點：伺服器機房。你正在檢查核心資料庫伺服器 (DB-01) 的運作狀況，這台機器負責存放客戶交易資料。",
+    evidence: {
+      interview: "系統管理員：『上週 DB-01 突然發出硬碟空間不足的警報，差點就當機了！為了讓系統恢復運作，我當下緊急刪除了半年前到現在的所有 Event Logs，現在空間已經釋放出來，系統運作很順暢。』",
+      doc: "查閱《備份與紀錄管理辦法》：『關鍵系統之日誌 (Logs)應至少保存一年，以供後續鑑識與稽核使用。』",
+      observation: {
+        type: "text",
+        content: "你檢查伺服器狀態，硬碟空間確實還有 40% 可用。但當你們打開事件檢視器，發現紀錄只剩下最近 3 天的資料。"
+      }
+    },
+    options: [
+      { text: "沒有問題，維持系統可用性是最優先的，刪除 Log 是正確的緊急處置。", correct: false },
+      { text: "不符合事項：未落實容量管理預測，且因硬碟空間不足刪除 Log 導致違反保存政策。", correct: true },
+      { text: "觀察事項：做得好，但建議下次硬碟買大一點。", correct: false }
+    ],
+    explanation: "這是典型的「顧此失彼」。<br>1. A.8.6 容量管理：管理者應監控資源使用趨勢並「提前」擴充，而非等到爆滿才處理。<br>2. A.8.15 紀錄保存：為了救空間而刪除法規要求保存的 Log，導致軌跡中斷，是嚴重的缺失。正確做法應是將 Log 拋轉至冷儲存 (Archive) 或擴充磁碟，而非直接刪除。"
+  }
+];
+
+    let gameMode = 'normal'; let globalScore = 0; let currentCaseIndex = 0; let highestUnlockedIndex = 0;
+    let userAnswers = {}; let evidenceCollected = { interview: false, doc: false, observation: false };
+    let questionStartTime = 0; let questionActionsCount = 0;
+
+    const screens = { start: document.getElementById('start-screen'), game: document.getElementById('game-screen'), final: document.getElementById('final-screen') };
+    
+    // --- 防弊與自訂右鍵選單邏輯 ---
+    const customMenu = document.getElementById('custom-context-menu');
+
+    function triggerAntiCheat() {
+        // 隱藏自訂選單
+        customMenu.style.display = 'none';
+
+        if (gameMode === 'challenge' && !document.getElementById('penalty-screen').style.display) {
+            globalScore -= 9999;
+            document.getElementById('global-score-display').innerText = `Score: ${globalScore}`;
+            document.getElementById('penalty-score-text').innerText = "扣除 9999 分 (目前分數: " + globalScore + ")";
+        }
+        playSound('fail');
+        
+        document.getElementById('penalty-screen').style.display = 'flex';
+        
+        let timeLeft = 3;
+        const countdownEl = document.getElementById('countdown');
+        const timer = setInterval(() => {
+            timeLeft--;
+            countdownEl.innerText = timeLeft;
+            if(timeLeft <= 0) {
+                clearInterval(timer);
+                window.open('', '_self', ''); 
+                window.close();
+            }
+        }, 1000);
+    }
+
+    // 1. 攔截原生右鍵，顯示我們的自訂選單
+    document.addEventListener('contextmenu', event => {
+        event.preventDefault(); // 把瀏覽器原本的選單擋掉
+        
+        // 確保選單不會超出畫面邊界
+        let x = event.pageX;
+        let y = event.pageY;
+        if (x + 180 > window.innerWidth) x -= 180;
+        if (y + 150 > window.innerHeight) y -= 150;
+
+        customMenu.style.left = x + 'px';
+        customMenu.style.top = y + 'px';
+        customMenu.style.display = 'block';
+    });
+
+    // 2. 點擊畫面其他地方時，把自訂選單藏起來
+    document.addEventListener('click', event => {
+        if (event.button !== 2) {
+            customMenu.style.display = 'none';
+        }
+    });
+
+    // 3. 鍵盤快捷鍵防弊 (F12, Ctrl+Shift+I, Ctrl+U)
+    document.addEventListener('keydown', event => {
+        if (event.key === 'F12' || 
+           (event.ctrlKey && event.shiftKey && (event.key === 'I' || event.key === 'i')) || 
+           (event.ctrlKey && (event.key === 'u' || event.key === 'U'))) {
+            event.preventDefault();
+            triggerAntiCheat();
+        }
+    });
+    // -----------------------
+
+    function startGame(mode) {
+        playSound('click'); gameMode = mode; globalScore = 0; userAnswers = {}; highestUnlockedIndex = 0;
+        updateProgressBar(); document.getElementById('btn-cheat').classList.remove('hidden');
+        if (mode === 'challenge') { document.getElementById('global-score-display').style.display = 'inline-block'; document.getElementById('global-score-display').innerText = `Score: 0`; } 
+        else { document.getElementById('global-score-display').style.display = 'none'; }
+        screens.start.classList.add('hidden'); screens.final.classList.add('hidden'); screens.game.classList.remove('hidden');
+        loadCase(0);
+    }
+
+    function loadCase(index) {
+        currentCaseIndex = index; const data = cases[index]; const isAnswered = userAnswers[index] !== undefined;
+        questionStartTime = Date.now(); questionActionsCount = 0;
+        document.getElementById('btn-prev').disabled = (index === 0);
+        document.getElementById('btn-next').disabled = (!isAnswered && index >= highestUnlockedIndex) || (index === cases.length - 1 && !isAnswered);
+        document.getElementById('progress-badge').innerText = `Case ${index + 1} / ${cases.length}`;
+        document.getElementById('evidence-hint').style.display = 'block';
+        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.evidence-content').forEach(el => el.classList.remove('show'));
+        
+        const verdictBtn = document.getElementById('make-verdict-btn');
+        if (isAnswered) { evidenceCollected = { interview: true, doc: true, observation: true }; verdictBtn.disabled = false; verdictBtn.innerText = "檢視判定結果"; verdictBtn.style.background = "var(--highlight)"; } 
+        else { evidenceCollected = { interview: false, doc: false, observation: false }; verdictBtn.disabled = true; verdictBtn.innerText = "證據收集完成，開始判定"; verdictBtn.style.background = "var(--primary)"; }
+
+        document.getElementById('case-title').innerText = data.title; document.getElementById('case-desc').innerText = data.desc;
+        document.getElementById('txt-interview').innerText = data.evidence.interview; document.getElementById('txt-doc').innerText = data.evidence.doc;
+        
+        const obsContainer = document.getElementById('obs-container'); obsContainer.innerHTML = '';
+        if (data.evidence.observation.type === 'img') {
+            obsContainer.innerHTML = `<img src="${data.evidence.observation.src}" class="evidence-img" onclick="openLightbox(this.src)" onerror="this.style.display='none'; this.outerHTML+='<br>[圖片載入失敗，請確認路徑]'"><p>${data.evidence.observation.caption}</p>`;
+        } else {
+            obsContainer.innerText = data.evidence.observation.content;
+        }
+    }
+
+    function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox-modal').style.display = 'flex'; }
+    function closeLightbox() { document.getElementById('lightbox-modal').style.display = 'none'; }
+
+    function showEvidence(type, btnElement) {
+        playSound('click'); document.getElementById('evidence-hint').style.display = 'none';
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active')); btnElement.classList.add('active');
+        document.querySelectorAll('.evidence-content').forEach(el => el.classList.remove('show')); document.getElementById(`ev-${type}`).classList.add('show');
+        if (!userAnswers[currentCaseIndex]) {
+            if(!evidenceCollected[type]){ questionActionsCount++; }
+            evidenceCollected[type] = true;
+            if (evidenceCollected.interview && evidenceCollected.doc && evidenceCollected.observation) { document.getElementById('make-verdict-btn').disabled = false; }
+        }
+    }
+
+    function openCheatSheet() {
+        playSound('alert');
+        if (gameMode === 'challenge' && !userAnswers[currentCaseIndex]) {
+            globalScore -= 30; document.getElementById('global-score-display').innerText = `Score: ${globalScore}`;
+            const toast = document.getElementById('toast-msg'); toast.style.opacity = '1'; setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+        }
+        document.getElementById('cheat-sheet-modal').style.display = 'flex';
+    }
+
+    function openVerdictModal() {
+        playSound('click');
+        if (userAnswers[currentCaseIndex]) { showResultModal(userAnswers[currentCaseIndex].correct, true, userAnswers[currentCaseIndex].score); return; }
+        const modal = document.getElementById('verdict-modal'); const container = document.getElementById('options-container'); container.innerHTML = '';
+        cases[currentCaseIndex].options.forEach(opt => { const btn = document.createElement('button'); btn.className = 'option-btn'; btn.innerText = opt.text; btn.onclick = () => checkAnswer(opt); container.appendChild(btn); });
+        modal.style.display = 'flex';
+    }
+
+    function closeVerdictModal() { playSound('click'); document.getElementById('verdict-modal').style.display = 'none'; }
+
+    function checkAnswer(option) {
+        closeVerdictModal(); let questionScore = 0;
+        if (gameMode === 'challenge') {
+            if (option.correct) {
+                const timePenalty = Math.max(0, Math.floor((Date.now() - questionStartTime) / 1000) - 10) * 1;
+                questionScore = Math.max(0, 100 - timePenalty - (questionActionsCount * 5));
+            } else { questionScore = 0; }
+            globalScore += questionScore; document.getElementById('global-score-display').innerText = `Score: ${globalScore}`;
+        }
+        userAnswers[currentCaseIndex] = { correct: option.correct, score: questionScore };
+        if (currentCaseIndex === highestUnlockedIndex) { highestUnlockedIndex++; updateProgressBar(); }
+        document.getElementById('btn-next').disabled = false;
+        const verdictBtn = document.getElementById('make-verdict-btn'); verdictBtn.innerText = "檢視判定結果"; verdictBtn.style.background = "var(--highlight)";
+        showResultModal(option.correct, false, questionScore);
+    }
+
+    function showResultModal(isCorrect, isReview, scoreEarned) {
+        if (!isReview) { isCorrect ? playSound('success') : playSound('fail'); }
+        const resultModal = document.getElementById('result-modal'); const title = document.getElementById('result-title');
+        const icon = document.getElementById('result-icon'); const desc = document.getElementById('result-desc');
+        const continueBtn = document.getElementById('result-continue-btn'); const scoreDisplay = document.getElementById('result-points');
+
+        if (isCorrect) {
+            title.innerText = "判定正確"; title.style.color = "var(--success)"; icon.className = "fas fa-check-circle"; icon.style.color = "var(--success)";
+            desc.innerHTML = `<span class='pass'>正確！</span><br><br>${cases[currentCaseIndex].explanation}`;
+        } else {
+            title.innerText = "判定錯誤"; title.style.color = "var(--danger)"; icon.className = "fas fa-times-circle"; icon.style.color = "var(--danger)";
+            desc.innerHTML = `<span class='fail'>錯誤。</span><br>${cases[currentCaseIndex].explanation}`;
+        }
+
+        if (gameMode === 'challenge' && !isReview) { scoreDisplay.style.display = 'block'; scoreDisplay.innerText = isCorrect ? `本題獲得: + ${scoreEarned} 分` : `本題獲得: 0 分`; scoreDisplay.style.color = isCorrect ? "var(--success)" : "var(--danger)"; } else { scoreDisplay.style.display = 'none'; }
+        continueBtn.innerText = isReview ? "關閉" : ((currentCaseIndex + 1 < cases.length) ? "下一案" : "查看總結報告");
+        resultModal.style.display = 'flex';
+    }
+
+    function closeResultAndProceed() {
+        playSound('click'); document.getElementById('result-modal').style.display = 'none';
+        const continueBtnText = document.getElementById('result-continue-btn').innerText;
+        if (continueBtnText === "下一案") { navigateCase(1); } else if (continueBtnText === "查看總結報告") { showFinalResults(); }
+    }
+
+    function navigateCase(direction) {
+        playSound('click'); const newIndex = currentCaseIndex + direction;
+        if (newIndex >= 0 && newIndex <= highestUnlockedIndex && newIndex < cases.length) { loadCase(newIndex); } 
+        else if (newIndex === cases.length && userAnswers[cases.length - 1]) { showFinalResults(); }
+    }
+
+    function updateProgressBar() { document.getElementById('progress-bar').style.width = `${(highestUnlockedIndex / cases.length) * 100}%`; }
+
+    function showFinalResults() {
+        playSound('success'); screens.game.classList.add('hidden'); screens.final.classList.remove('hidden');
+        let correctCount = 0; for (let key in userAnswers) { if (userAnswers[key].correct) correctCount++; }
+        const rankEl = document.getElementById('final-rank'); const commentEl = document.getElementById('final-comment');
+        document.getElementById('correct-count').innerText = correctCount; document.getElementById('total-count').innerText = cases.length;
+
+        if (gameMode === 'challenge') {
+            document.getElementById('final-score').innerText = globalScore; document.getElementById('score-breakdown-display').innerText = `最終總分：${globalScore} 分 (滿分 ${cases.length * 100})`;
+            if (globalScore >= (cases.length * 80)) { rankEl.innerText = "🏆 首席主導稽核員"; rankEl.style.color = "var(--success)"; commentEl.innerText = "不僅觀念正確，判斷速度更是驚人！"; } 
+            else if (globalScore >= (cases.length * 50)) { rankEl.innerText = "✅ 合格稽核員"; rankEl.style.color = "var(--primary)"; commentEl.innerText = "表現穩健，但作答時間或翻閱小抄的頻率較高。"; } 
+            else { rankEl.innerText = "⚠️ 實習稽核員"; rankEl.style.color = "var(--danger)"; commentEl.innerText = "分數偏低。扣分可能來自於答錯、過度依賴小抄或思考過久。"; }
+        } else {
+            document.getElementById('score-breakdown-display').innerText = ""; const acc = Math.round((correctCount / cases.length) * 100); document.getElementById('final-score').innerText = acc;
+            if (acc === 100) { rankEl.innerText = "🏆 主導稽核員"; rankEl.style.color = "var(--success)"; commentEl.innerText = "完美通關！所有觀念全數命中。"; } 
+            else { rankEl.innerText = "✅ 合格稽核員"; rankEl.style.color = "var(--primary)"; commentEl.innerText = "基本觀念紮實，繼續保持。"; }
+        }
+    }
+</script>
+</body>
+</html>
